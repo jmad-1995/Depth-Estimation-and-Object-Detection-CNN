@@ -15,8 +15,8 @@ args = parser.parse_args()
 device = "cuda:{}".format(args.device) if torch.cuda.is_available() else 'cpu'
 
 # Dataset
-train_dataset = kitti.KITTIDataset(args.path, batch_size=args.batch_size, augment=True)
-test_dataset = kitti.KITTIDataset(args.path, batch_size=args.batch_size)
+train_dataset = kitti.KITTI(args.path, batch_size=args.batch_size, augment=True)
+test_dataset = kitti.KITTI(args.path, batch_size=args.batch_size)
 
 # CNN
 model = networks.MultiPurposeCNN().to(device)
