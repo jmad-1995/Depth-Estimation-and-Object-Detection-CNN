@@ -10,16 +10,24 @@ class MultiPurposeCNN(nn.Module):
 
         self.backbone = MobileNetV2()
         self.depth = DepthBranch()
+        self.ssd = ObjectBranch()
 
     def forward(self, x):
 
-        p1, p2, p3, p4, p5 = self.backbone(x)
+        feature_maps = self.backbone(x)
 
-        print(p1.shape)
-        print(p2.shape)
-        print(p3.shape)
-        print(p4.shape)
-        print(p5.shape)
+        p1, p2, p3, p4, p5 = feature_maps
+
+        print("P1: ", p1.shape)
+        print("P2: ", p2.shape)
+        print("P3: ", p3.shape)
+        print("P4: ", p4.shape)
+        print("P5: ", p5.shape)
+
+        depth = self.depth(feature_maps)
+        detections = self.ssd(feature_maps)
+
+        return depth, detections
 
 
 class MobileNetV2(nn.Module):
@@ -50,8 +58,24 @@ class DepthBranch(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x):
-        return
+        # Up 5
+        self.up4 = nn.Sequential(nn.ConvTranspose2d(320, 96, 4, 2, 1, bias=False), nn.BatchNorm2d(96), nn.ReLU())
+        self.up3 = nn.Sequential(nn.ConvTranspose2d(192, 32, 4, 2, 1, bias=False), nn.BatchNorm2d(32), nn.ReLU())
+        self.up2 = nn.Sequential(nn.ConvTranspose2d(64, 24, 2, 2, 0, bias=False), nn.BatchNorm2d(24), nn.ReLU())
+        self.up1 = nn.Sequential(nn.ConvTranspose2d(48, 16, 2, 2, 0, bias=False), nn.BatchNorm2d(16), nn.ReLU())
+        self.out = nn.Sequential(nn.Conv2d(32, 32, 1, bias=False), nn.ReLU(),
+                                 nn.Conv2d(32, 1, 3, padding=1, groups=1, bias=False))
+
+    def forward(self, feature_maps):
+        p1, p2, p3, p4, p5 = feature_maps
+
+        up4 = self.up4(p5)
+        up3 = self.up3(torch.cat([up4, p4], dim=1))
+        up2 = self.up2(torch.cat([up3, p3], dim=1))
+        up1 = self.up1(torch.cat([up2, p2], dim=1))
+        depth = self.out(torch.cat([up1, p1], dim=1))
+
+        return depth
 
 
 class ObjectBranch(nn.Module):
@@ -59,8 +83,12 @@ class ObjectBranch(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x):
-        return
+        self.c1 = nn.Sequential()
+
+    def forward(self, feature_maps):
+        p1, p2, p3, p4, p5 = feature_maps
+
+        return None
 
 
 if __name__ == '__main__':
@@ -74,5 +102,6 @@ if __name__ == '__main__':
     model = MultiPurposeCNN().to(device)
 
     #
-    _ = model(zeros)
+    d, o = model(zeros)
 
+    print(d.shape)
