@@ -64,10 +64,24 @@ def depth_metrics(predictions, targets):
 
 
 def objects_metrics(classes_prediction, bboxes_prediction, classes_targets, bboxes_targets):
-    """Return mean Average precision given the class targets/predictions and bounding box target/predictions pairs
+    """Return mean Average precision given the class targets/predictions and bounding box target/predictions pairs for
+       a single image.
 
     Arguments
     ---------
+    classes_prediction: array (N, 1) of integers indicating the class the bounding box belongs to. 0=background, 1=car,
+                        2=person.
+    bboxes_prediction: array (N, 4) of bounding box coordinates [y1, x1, y2, x2] that correspond to the class
+                       predictions.
+    classes_targets: array (M, 1) of integers indicating the class the bounding box belongs to. 0=background, 1=car,
+                     2=person.
+    bboxes_prediction: array (M, 4) of bounding box coordinates [y1, x1, y2, x2] that correspond to the class
+                       targets.
+
+    Returns
+    -------
+    mAP: floating point value indicating the mean average precision for a set of detection targets and predictions from
+         an image.
 
     """
     return
@@ -114,10 +128,6 @@ def non_max_suppression(bboxes, min_IOU=.75):
         # remove overlaps
         left_most_arg = np.delete(left_most_arg, np.concatenate(([last],np.where(IOU > min_IOU)[0])))
 
-    return bboxes[result].astype("int")
-
-
-def non_max_suppression_numpy(bboxes):
-    return
+    return bboxes[result]
 
 
