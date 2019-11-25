@@ -37,7 +37,7 @@ def depth_loss(predictions, target):
 
 
 def objects_loss(predictions, targets):
-    return
+    return 0.
 
 
 def depth_metrics(predictions, targets):

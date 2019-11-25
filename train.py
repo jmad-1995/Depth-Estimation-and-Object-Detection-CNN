@@ -5,6 +5,7 @@ import numpy as np
 import networks
 import utils
 import kitti
+import viz
 
 
 # Argument parser
@@ -28,6 +29,9 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weigh
 # Loss functions
 criterion_depth = utils.depth_loss
 criterion_objects = utils.objects_loss
+
+# Visdom writer
+writer = viz.VisdomPlotter()
 
 
 def train():
@@ -65,6 +69,8 @@ def train():
             test_loss = test()
 
             # Visualize results on the server
+            writer.plot('loss', 'train', 'Depth loss', idx, np.mean(running_loss))
+            writer.plot('loss', 'validation', 'Depth loss', idx, test_loss)
 
         # Save model
         if (idx + 1) % args.save_freq == 0:
