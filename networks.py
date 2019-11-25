@@ -12,17 +12,26 @@ class MultiPurposeCNN(nn.Module):
         self.depth = DepthBranch()
         self.ssd = ObjectBranch()
 
+        # Parameter count
+        total = sum([p.numel() for p in self.parameters()])
+        mobilenetv2 = sum([p.numel() for p in self.backbone.parameters()])
+        depth = sum([p.numel() for p in self.depth.parameters()])
+        object = sum([p.numel() for p in self.ssd.parameters()])
+        print('Multi-purpose CNN initialized with: {:.3e total parameters}'.format(total))
+        print('MobileNetV2: {:.3e total parameters}'.format(mobilenetv2))
+        print('Depth Estimation Branch: {:.3e total parameters}'.format(depth))
+        print('Object Detection Branch: {:.3e total parameters}'.format(object))
+
     def forward(self, x):
 
         feature_maps = self.backbone(x)
 
-        p1, p2, p3, p4, p5 = feature_maps
-
-        print("P1: ", p1.shape)
-        print("P2: ", p2.shape)
-        print("P3: ", p3.shape)
-        print("P4: ", p4.shape)
-        print("P5: ", p5.shape)
+        # p1, p2, p3, p4, p5 = feature_maps
+        # # print("P1: ", p1.shape)
+        # # print("P2: ", p2.shape)
+        # # print("P3: ", p3.shape)
+        # # print("P4: ", p4.shape)
+        # # print("P5: ", p5.shape)
 
         depth = self.depth(feature_maps)
         detections = self.ssd(feature_maps)
@@ -83,11 +92,8 @@ class ObjectBranch(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.c1 = nn.Sequential()
-
     def forward(self, feature_maps):
         p1, p2, p3, p4, p5 = feature_maps
-
         return None
 
 
