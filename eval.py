@@ -65,7 +65,7 @@ def evaluate():
         metrics[key] = np.mean(metrics[key])
 
     # Export to CSV
-    with open('results/results.csv', 'w') as csv_file:
+    with open('results/{}.csv'.format(args.saved_model.split('.')[0]), 'w') as csv_file:
         writer = csv.DictWriter(csv_file, metrics.keys())
         writer.writeheader()
         writer.writerow(metrics)

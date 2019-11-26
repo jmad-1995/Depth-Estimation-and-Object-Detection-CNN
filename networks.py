@@ -158,7 +158,7 @@ class DeepResNet50(nn.Module):
 
         depth = self.depth(up1)
 
-        return depth
+        return {'depths': depth}
 
 
 if __name__ == '__main__':

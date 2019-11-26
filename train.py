@@ -62,7 +62,6 @@ def train():
         # Forward pass
         predictions = model(images.to(device))
         depth_predictions = predictions['depths']
-        object_predictions = predictions['objects']
 
         # Loss calculation
         loss_depth = criterion_depth(depth_predictions, depth_targets.to(device))
@@ -108,7 +107,6 @@ def test():
         # Forward pass
         predictions = model(images.to(device))
         depth_predictions = predictions['depths']
-        object_predictions = predictions['objects']
 
         # Loss calculation
         loss_depth = criterion_depth(depth_predictions, depth_targets.to(device))

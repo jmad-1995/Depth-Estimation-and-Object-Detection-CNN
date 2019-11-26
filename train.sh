@@ -4,6 +4,6 @@ python train.py -path /media/awmagsam/HDD/Datasets/KITTI \
                 -n_iters 10000 \
                 -test_freq 100 \
                 -save_freq 500 \
-                -prefix v2_MSEgrad \
-                -lr 0.00007 \
+                -prefix resnet50_v1 \
+                -lr 0.0001 \
                 -device 0
