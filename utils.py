@@ -31,8 +31,9 @@ def _gradient_loss(predictions, target):
 
 
 def depth_loss(predictions, target):
-    loss = nn.L1Loss()(predictions, target) + \
-           _gradient_loss(predictions, target)
+    x, y = (375, 1220)
+    loss = nn.L1Loss()(predictions[:, :, :, :], target[:, :, :, :]) + \
+        _gradient_loss(predictions[:, :, :, :], target[:, :, :, :])
     return loss
 
 
