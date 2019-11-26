@@ -32,7 +32,7 @@ def _gradient_loss(predictions, target):
 
 def depth_loss(predictions, target):
     x, y = (375, 1220)
-    loss = nn.L1Loss()(predictions[:, :, :, :], target[:, :, :, :]) + \
+    loss = 0.1 * nn.L1Loss()(predictions[:, :, :, :], target[:, :, :, :]) + \
         _gradient_loss(predictions[:, :, :, :], target[:, :, :, :])
     return loss
 
@@ -59,7 +59,7 @@ def depth_metrics(predictions, targets):
     rmse = np.sqrt(np.mean((targets - predictions) ** 2))
 
     # Log10 error
-    log10 = np.mean(np.abs(np.log10(targets) - np.log10(predictions)))
+    log10 = np.mean(np.abs(np.log10(targets.clip(1e-3, None)) - np.log10(predictions.clip(1e-3, None))))
 
     return {'delta_1': deltas[0], 'delta_2': deltas[1], "delta_3": deltas[2], 'Rel': rel, 'RMSE': rmse, "log10": log10}
 
