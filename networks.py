@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import numpy as np
+from skimage.transform import resize
 
 
 class MultiPurposeCNN(nn.Module):
@@ -13,40 +15,70 @@ class MultiPurposeCNN(nn.Module):
         self.ssd = ObjectBranch()
 
         # Parameter count
-        total = sum([p.numel() for p in self.parameters()])
-        mobilenetv2 = sum([p.numel() for p in self.backbone.parameters()])
-        depth = sum([p.numel() for p in self.depth.parameters()])
-        object = sum([p.numel() for p in self.ssd.parameters()])
-        print('Multi-purpose CNN initialized with: {:.3e total parameters}'.format(total))
-        print('MobileNetV2: {:.3e total parameters}'.format(mobilenetv2))
-        print('Depth Estimation Branch: {:.3e total parameters}'.format(depth))
-        print('Object Detection Branch: {:.3e total parameters}'.format(object))
+        total = sum(p.numel() for p in self.parameters())
+        mobilenetv2 = sum(p.numel() for p in self.backbone.parameters())
+        depth = sum(p.numel() for p in self.depth.parameters())
+        _object = sum(p.numel() for p in self.ssd.parameters())
+        print('\n\n')
+        print('# ' * 50)
+        print('Multi-purpose CNN initialized with: {:.3e} total parameters'.format(total))
+        print('MobileNetV2: {:.3e} total parameters'.format(mobilenetv2))
+        print('Depth Estimation Branch: {:.3e} total parameters'.format(depth))
+        print('Object Detection Branch: {:.3e} total parameters'.format(_object))
+        print('# ' * 50)
+        print('\n\n')
 
     def forward(self, x):
 
         feature_maps = self.backbone(x)
-
-        # p1, p2, p3, p4, p5 = feature_maps
-        # # print("P1: ", p1.shape)
-        # # print("P2: ", p2.shape)
-        # # print("P3: ", p3.shape)
-        # # print("P4: ", p4.shape)
-        # # print("P5: ", p5.shape)
-
         depth = self.depth(feature_maps)
         detections = self.ssd(feature_maps)
 
-        return depth, detections
+        return {'depths': depth, 'objects': detections}
+
+    def predict(self, image):
+        self.eval()
+
+        # Convert to float
+        if image.dtype == np.uint8:
+            image = image.astype(np.float32) / 255.
+
+        # Padding
+        aspect_ratio = 1280 / 384
+        if image.shape[1] / image.shape[0] > aspect_ratio:
+            pad_x = 0
+            pad_y = image.shape[1] / aspect_ratio - image.shape[0]
+        else:
+            pad_x = image.shape[0] * aspect_ratio - image.shape[1]
+            pad_y = 0
+        padded = np.pad(image, ((0, pad_y), (0, pad_x), (0, 0)), constant_values=1e-3,
+                        mode='constant')
+
+        # Resize
+        resized = resize(padded, (1280, 384), mode='constant', cval=1e-3, anti_aliasing=False)
+
+        # Predict on image plus mirror image
+        image_flipped = np.flip(resized, axis=1)
+        image_tensor = torch.from_numpy(np.stack([resized, image_flipped], axis=0).copy()).permute(0, 3, 1, 2)
+
+        # Forward pass + average of two predictions
+        predictions = self.forward(image_tensor)
+        depth = predictions['depths'].squeeze()
+        depth = torch.mean(torch.stack([depth[0], torch.flip(depth[1], dims=[1])]), dim=0)
+
+        # Post-process
+        depth = depth.detach().cpu().numpy()
+        depth = resize(depth, resized.shape[:2], mode='constant', cval=1e-3, anti_aliasing=False)
+        depth = depth[:image.shape[0], :image.shape[1]]
+
+        return depth
 
 
 class MobileNetV2(nn.Module):
 
-    """Input: 480x640 (4:3), and has height and width divisible by 32"""
-
     def __init__(self, pretrained=True):
         super().__init__()
 
-        self.mobilenetv2 = nn.Sequential(*list(models.mobilenet_v2(pretrained=pretrained).children())[0][:-5])
         self.c1 = nn.Sequential(*list(models.mobilenet_v2(pretrained=pretrained).children())[0][:2])
         self.c2 = nn.Sequential(*list(models.mobilenet_v2(pretrained=pretrained).children())[0][2:4])
         self.c3 = nn.Sequential(*list(models.mobilenet_v2(pretrained=pretrained).children())[0][4:7])
@@ -70,10 +102,9 @@ class DepthBranch(nn.Module):
         # Up 5
         self.up4 = nn.Sequential(nn.ConvTranspose2d(320, 96, 4, 2, 1, bias=False), nn.BatchNorm2d(96), nn.ReLU())
         self.up3 = nn.Sequential(nn.ConvTranspose2d(192, 32, 4, 2, 1, bias=False), nn.BatchNorm2d(32), nn.ReLU())
-        self.up2 = nn.Sequential(nn.ConvTranspose2d(64, 24, 2, 2, 0, bias=False), nn.BatchNorm2d(24), nn.ReLU())
-        self.up1 = nn.Sequential(nn.ConvTranspose2d(48, 16, 2, 2, 0, bias=False), nn.BatchNorm2d(16), nn.ReLU())
-        self.out = nn.Sequential(nn.Conv2d(32, 32, 1, bias=False), nn.ReLU(),
-                                 nn.Conv2d(32, 1, 3, padding=1, groups=1, bias=False))
+        self.up2 = nn.Sequential(nn.ConvTranspose2d(64, 24, 4, 2, 1, bias=False), nn.BatchNorm2d(24), nn.ReLU())
+        self.up1 = nn.Sequential(nn.ConvTranspose2d(48, 16, 4, 2, 1, bias=False), nn.BatchNorm2d(16), nn.ReLU())
+        self.out = nn.Sequential(nn.Conv2d(32, 1, 3, padding=1, groups=1, bias=False))
 
     def forward(self, feature_maps):
         p1, p2, p3, p4, p5 = feature_maps
@@ -97,17 +128,44 @@ class ObjectBranch(nn.Module):
         return None
 
 
+class DeepResNet50(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.c1 = nn.Sequential(*list(models.resnet50(pretrained=True).children())[:3])  # 240x320x64
+        self.c2 = nn.Sequential(*list(models.resnet50(pretrained=True).children())[3:5])  # 120x160x256
+        self.c3 = nn.Sequential(*list(models.resnet50(pretrained=True).children())[5:6])  # 60x80x512
+        self.c4 = nn.Sequential(*list(models.resnet50(pretrained=True).children())[6:7])  # 30x40x1024
+        self.c5 = nn.Sequential(*list(models.resnet50(pretrained=True).children())[7:8])  # 15x30x2048
+
+        self.up5 = nn.Sequential(nn.ConvTranspose2d(2048, 1024, 4, 2, 1), nn.BatchNorm2d(1024), nn.ReLU())
+        self.up4 = nn.Sequential(nn.ConvTranspose2d(2048, 512, 4, 2, 1), nn.BatchNorm2d(512), nn.ReLU())
+        self.up3 = nn.Sequential(nn.ConvTranspose2d(1024, 256, 2, 2, 0), nn.BatchNorm2d(256), nn.ReLU())
+        self.up2 = nn.Sequential(nn.ConvTranspose2d(512, 128, 2, 2, 0), nn.BatchNorm2d(128), nn.ReLU())
+        self.depth = nn.Conv2d(128, 1, 3, 1, 1)
+
+    def forward(self, x):
+        c1 = self.c1(x)  # 240x320x64
+        c2 = self.c2(c1)  # 120x160x256
+        c3 = self.c3(c2)  # 60x80x512
+        c4 = self.c4(c3)  # 30x40x1024
+        c5 = self.c5(c4)  # 15x30x2048
+
+        up4 = self.up5(c5)  # 30x40x1024
+        up3 = self.up4(torch.cat([up4, c4], dim=1))  # 60x80x512
+        up2 = self.up3(torch.cat([up3, c3], dim=1))  # 120x160x256
+        up1 = self.up2(torch.cat([up2, c2], dim=1))  # 240x320x64
+
+        depth = self.depth(up1)
+
+        return depth
+
+
 if __name__ == '__main__':
 
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    zeros = torch.zeros((1, 3, 384, 1280))
+    model = MultiPurposeCNN()
 
-    # Frame rate testing
-    zeros = torch.zeros((1, 3, 480, 640)).to(device)
-
-    #
-    model = MultiPurposeCNN().to(device)
-
-    #
-    d, o = model(zeros)
-
+    o = model(zeros)
+    d = o['depths']
     print(d.shape)

@@ -24,29 +24,31 @@ class VisdomPlotter(object):
             self.viz.line(X=np.array([x]), Y=np.array([y]), env=self.env, win=self.plots[var_name], name=split_name,
                           update='append')
 
-    def show_image(self, model, test_dataset, train_dataset, device):
+    def show_images(self, model, train_dataset, valid_dataset, device):
 
         model.eval()
+        post = lambda x: np.clip(x.detach().numpy().transpose((1, 2, 0)).squeeze() / 20, 0., 1.)
 
         #####################################################################################################
         # Validation
-        idx = np.random.randint(len(test_dataset))
-        sample = test_dataset[idx]
+        idx = np.random.randint(len(valid_dataset))
+        sample = valid_dataset[idx]
 
         # Inference
-        rgb = sample['images'].to(device)
-        depth = sample['depths'].to(device)
-        prediction = model(rgb)
+        images = sample['images'].to(device)
+        depths = sample['depths'].to(device)
+        prediction = model(images)
+        prediction = prediction['depths']
 
         # Choose images to display and transfer to CPU
-        batch_idx = np.random.randint(rgb.shape[0])
-        image = rgb[batch_idx].cpu()
-        target = depth[batch_idx].cpu()
+        batch_idx = np.random.randint(images.shape[0])
+        image = images[batch_idx].cpu()
+        target = depths[batch_idx].cpu()
         prediction = prediction[batch_idx].cpu()
 
         # Get normalized 2D depth maps HxW
-        target = np.clip(target.detach().numpy().transpose((1, 2, 0)).squeeze() / 10., 0, 1)
-        prediction = np.clip(prediction.detach().numpy().transpose((1, 2, 0)).squeeze() / 10., 0, 1)
+        target = post(target)
+        prediction = post(prediction)
 
         # Colorize images
         cmapper = cm.get_cmap('plasma')
@@ -79,19 +81,20 @@ class VisdomPlotter(object):
         sample = train_dataset[idx]
 
         # Inference
-        rgb = sample['images'].to(device)
-        depth = sample['depths'].to(device)
-        prediction = model(rgb)
+        images = sample['images'].to(device)
+        depths = sample['depths'].to(device)
+        prediction = model(images)
+        prediction = prediction['depths']
 
         # Choose images to display and transfer to CPU
-        batch_idx = np.random.randint(rgb.shape[0])
-        image = rgb[batch_idx].cpu()
-        target = depth[batch_idx].cpu()
+        batch_idx = np.random.randint(images.shape[0])
+        image = images[batch_idx].cpu()
+        target = depths[batch_idx].cpu()
         prediction = prediction[batch_idx].cpu()
 
         # Get normalized 2D depth maps HxW
-        target = np.clip(target.detach().numpy().transpose((1, 2, 0)).squeeze() / 10., 0, 1)
-        prediction = np.clip(prediction.detach().numpy().transpose((1, 2, 0)).squeeze() / 10., 0, 1)
+        target = post(target)
+        prediction = post(prediction)
 
         # Colorize images
         cmapper = cm.get_cmap('plasma')
@@ -99,24 +102,24 @@ class VisdomPlotter(object):
         prediction = cmapper(prediction).transpose((2, 0, 1))
 
         if 'rgb_t' not in self.plots:
-            self.plots['rgb_t'] = self.viz.image(image, env=self.env, opts={'store_history': True, 'caption': 'RGB_t'})
+            self.plots['rgb_t'] = self.viz.image(image, env=self.env, opts={'store_history': True, 'caption': 'RGB_train'})
         else:
             self.viz.image(image, env=self.env, win=self.plots['rgb_t'],
-                           opts={'store_history': True, 'caption': 'RGB_t'})
+                           opts={'store_history': True, 'caption': 'RGB_train'})
 
         if 'target_t' not in self.plots:
             self.plots['target_t'] = self.viz.image(torch.from_numpy(target.copy()), env=self.env,
-                                                  opts={'store_history': True, 'caption': 'Target_t'})
+                                                    opts={'store_history': True, 'caption': 'Target_train'})
         else:
             self.viz.image(torch.from_numpy(target), env=self.env, win=self.plots['target_t'],
-                           opts={'store_history': True, 'caption': 'Target_t'})
+                           opts={'store_history': True, 'caption': 'Target_train'})
 
         if 'prediction_t' not in self.plots:
             self.plots['prediction_t'] = self.viz.image(torch.from_numpy(prediction.copy()), env=self.env,
                                                       opts={'store_history': True, 'caption': 'Prediction_t'})
         else:
             self.viz.image(torch.from_numpy(prediction), env=self.env, win=self.plots['prediction_t'],
-                           opts={'store_history': True, 'caption': 'Prediction_t'})
+                           opts={'store_history': True, 'caption': 'Prediction_train'})
 
 
 def visualize_detections(image, bboxes):
