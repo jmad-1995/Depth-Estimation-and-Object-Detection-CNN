@@ -36,7 +36,7 @@ class MultiPurposeCNN(nn.Module):
 
         return {'depths': depth, 'objects': detections}
 
-    def predict(self, image):
+    def predict(self, image, device='cpu'):
         self.eval()
 
         # Convert to float
@@ -47,31 +47,43 @@ class MultiPurposeCNN(nn.Module):
         aspect_ratio = 1280 / 384
         if image.shape[1] / image.shape[0] > aspect_ratio:
             pad_x = 0
-            pad_y = image.shape[1] / aspect_ratio - image.shape[0]
+            pad_y = int(image.shape[1] / aspect_ratio - image.shape[0])
         else:
-            pad_x = image.shape[0] * aspect_ratio - image.shape[1]
+            pad_x = int(image.shape[0] * aspect_ratio - image.shape[1])
             pad_y = 0
         padded = np.pad(image, ((0, pad_y), (0, pad_x), (0, 0)), constant_values=1e-3,
                         mode='constant')
 
         # Resize
-        resized = resize(padded, (1280, 384), mode='constant', cval=1e-3, anti_aliasing=False)
+        resized = resize(padded, (384, 1280), mode='constant', cval=1e-3, anti_aliasing=False).astype(np.float32)
 
         # Predict on image plus mirror image
         image_flipped = np.flip(resized, axis=1)
         image_tensor = torch.from_numpy(np.stack([resized, image_flipped], axis=0).copy()).permute(0, 3, 1, 2)
 
         # Forward pass + average of two predictions
-        predictions = self.forward(image_tensor)
+        predictions = self.forward(image_tensor.to(device))
         depth = predictions['depths'].squeeze()
         depth = torch.mean(torch.stack([depth[0], torch.flip(depth[1], dims=[1])]), dim=0)
 
         # Post-process
         depth = depth.detach().cpu().numpy()
         depth = resize(depth, resized.shape[:2], mode='constant', cval=1e-3, anti_aliasing=False)
-        depth = depth[:image.shape[0], :image.shape[1]]
 
-        return depth
+        # Crop
+        x, y = (int(pad_x * resized.shape[1] / padded.shape[1]),
+                int(pad_y * resized.shape[0] / padded.shape[0]))
+
+        # print("image shape: ", image.shape)
+        # print('resized shape: ', resized.shape)
+        # print("padded shape: ", padded.shape)
+        # print("pad x", pad_x)
+        # print("pad y", pad_y)
+
+        depth = depth[:384-y, :1280-x]
+        resized = resized[:384-y, :1280-x, :]
+
+        return resized, depth
 
 
 class MobileNetV2(nn.Module):
