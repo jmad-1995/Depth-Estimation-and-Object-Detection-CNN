@@ -27,12 +27,12 @@ def _gradient_loss(predictions, target):
     gmag_p = torch.sqrt(gx_p**2 + gy_p**2)
     gmag_t = torch.sqrt(gx_t**2 + gy_t**2)
 
-    return nn.MSELoss()(gmag_p, gmag_t)
+    return nn.L1Loss()(gx_p, gx_t) + nn.L1Loss()(gy_p, gy_t)
 
 
 def depth_loss(predictions, target):
     x, y = (375, 1220)
-    loss = 0.1 * nn.L1Loss()(predictions[:, :, :, :], target[:, :, :, :]) + \
+    loss = 0.5 * nn.L1Loss()(predictions[:, :, :, :], target[:, :, :, :]) + \
         _gradient_loss(predictions[:, :, :, :], target[:, :, :, :])
     return loss
 
