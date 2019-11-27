@@ -1,0 +1,2 @@
+MobilenetV2, 36.7 FPS, 1.81e6 parameters
+ResNet50, 29.0 FPS, 7.51e7

@@ -74,13 +74,16 @@ def evaluate():
 def export_video():
     import skvideo.io as io
     import matplotlib.cm as cm
+    import PIL.Image as Image
+    import time
 
     # Create the reader and writer
-    writer = io.FFmpegWriter(filename='videos/kitti_mobilenetv2.mp4', outputdict={'-r': "10/1"})
+    # writer = io.FFmpegWriter(filename='videos/kitti_mobilenetv2.mp4', outputdict={'-r': "10/1"})
 
-    cmapper = cm.get_cmap('plasma')
+    # cmapper = cm.get_cmap('plasma')
 
-    for idx in range(len(test_dataset)):
+    times = []
+    for idx in np.random.choice(np.random.permutation(len(test_dataset)), 100):
 
         print("Predicting image {:05d} of {}".format(idx + 1, len(test_dataset)))
 
@@ -90,29 +93,33 @@ def export_video():
         depth_targets = sample['depths']
 
         # Forward pass
+        start = time.time()
         predictions = model(torch.cat([images, torch.flip(images, dims=[3])]).to(device))['depths'].squeeze()
         depth_predictions = torch.mean(torch.stack([predictions[0], torch.flip(predictions[1], dims=[1])]), dim=0)
+        end = time.time()
+        times.append(end - start)
+    print("ResNet50 frame rate: ", 100 / sum(times))
+        # # Convert to Numpy and up-sample
+        # images = images.detach().cpu().squeeze().permute(1, 2, 0).numpy()[:EVAL_Y, :EVAL_X, :]
+        # depth_predictions = depth_predictions.detach().cpu().numpy()[:EVAL_Y, :EVAL_X]
+        # depth_targets = depth_targets.detach().cpu().numpy().squeeze()[:EVAL_Y, :EVAL_X]
+        # depth_predictions = resize(depth_predictions, depth_targets.shape, mode='constant', cval=1e-3,
+        #                            preserve_range=True, anti_aliasing=False).astype(np.float32)
+        #
+        # # Colorize
+        # depth_predictions = cmapper(np.clip(depth_predictions / 11., 0., 1.))[..., :3]
+        # depth_targets = cmapper(np.clip(depth_targets / 11., 0., 1.))[..., :3]
+        #
+        # frame_out = np.concatenate([images, depth_targets, depth_predictions], axis=0)
+        # Image.fromarray(np.uint8(frame_out * 255.)).save('images/mobilenetv2_{}.png'.format(idx))
+        # writer.writeFrame(np.uint8(frame_out * 255.))
 
-        # Convert to Numpy and up-sample
-        images = images.detach().cpu().squeeze().permute(1, 2, 0).numpy()[:EVAL_Y, :EVAL_X, :]
-        depth_predictions = depth_predictions.detach().cpu().numpy()[:EVAL_Y, :EVAL_X]
-        depth_targets = depth_targets.detach().cpu().numpy().squeeze()[:EVAL_Y, :EVAL_X]
-        depth_predictions = resize(depth_predictions, depth_targets.shape, mode='constant', cval=1e-3,
-                                   preserve_range=True, anti_aliasing=False).astype(np.float32)
-
-        # Colorize
-        depth_predictions = cmapper(np.clip(depth_predictions / 11., 0., 1.))[..., :3]
-        depth_targets = cmapper(np.clip(depth_targets / 11., 0., 1.))[..., :3]
-
-        frame_out = np.concatenate([images, depth_targets, depth_predictions], axis=0)
-        writer.writeFrame(np.uint8(frame_out * 255.))
-
-    writer.close()
+    # writer.close()
 
 
 if __name__ == '__main__':
-    evaluate()
-    # export_video()
+    # evaluate()
+    export_video()
 
 
 
