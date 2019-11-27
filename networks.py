@@ -156,6 +156,14 @@ class DeepResNet50(nn.Module):
         self.up2 = nn.Sequential(nn.ConvTranspose2d(512, 128, 2, 2, 0), nn.BatchNorm2d(128), nn.ReLU())
         self.depth = nn.Conv2d(128, 1, 3, 1, 1)
 
+        # Parameter count
+        total = sum(p.numel() for p in self.parameters())
+        print('\n\n')
+        print('# ' * 50)
+        print('ResNet50 Depth CNN initialized with: {:.3e} total parameters'.format(total))
+        print('# ' * 50)
+        print('\n\n')
+
     def forward(self, x):
         c1 = self.c1(x)  # 240x320x64
         c2 = self.c2(c1)  # 120x160x256
