@@ -20,8 +20,8 @@ class KITTI(Dataset):
         self.image_path = os.path.join(self.path, 'depth', 'images', subset)
 
         # Get files
-        self.depth_files = next(os.walk(self.depth_path))[2]
-        np.random.shuffle(self.depth_files)
+        self.depth_files = sorted(next(os.walk(self.depth_path))[2])
+        # np.random.shuffle(self.depth_files)
         self.image_files = self.depth_files
 
         # Set options
