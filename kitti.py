@@ -18,15 +18,29 @@ class KITTI(Dataset):
         self.path = path
         self.depth_path = os.path.join(self.path, 'depth', 'processed_depth_maps', subset)
         self.image_path = os.path.join(self.path, 'depth', 'images', subset)
+        self.object_path = os.path.join(self.path, 'object')
 
         # Get files
         self.depth_files = sorted(next(os.walk(self.depth_path))[2])
         # np.random.shuffle(self.depth_files)
         self.image_files = self.depth_files
 
+        # Get object files
+        self.object_labels = sorted(next(os.walk(os.path.join(self.object_path, 'labels')))[2])
+        self.object_images = sorted(next(os.walk(os.path.join(self.object_path, 'images')))[2])
+
         # Set options
         self.batch_size = batch_size
         self.downsample = downsample
+
+        count = 0
+        for file in self.depth_files:
+
+            if file in self.object_images:
+                count += 1
+                print(file)
+
+        print("There are {} overlapping files with depth + object labels".format(count))
 
         # Determine pre-processing sequence
         if augment:
