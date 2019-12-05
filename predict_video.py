@@ -2,7 +2,7 @@ import argparse
 import torch
 import networks
 import skvideo
-skvideo.setFFmpegPath(r'C:\Program Files\FFmpeg\bin')
+skvideo.setFFmpegPath(r'C:\Program Files\ffmpeg\bin')
 import skvideo.io as io
 import numpy as np
 import matplotlib.cm as cm
@@ -31,15 +31,20 @@ model.eval()
 cmapper = cm.get_cmap('plasma')
 idx = 0
 for frame_in in reader.nextFrame():
+
     idx += 1
     print("Predicting frame {:05d} of {}".format(idx, reader.getShape()[0]))
 
+    # Predict depth
     rgb, depth = model.predict(frame_in, device)
 
+    # Colorize
     depth_color = cmapper(np.clip(depth / 11., 0., 1.))[..., :3]
 
+    # Create frame
     frame_out = np.concatenate([rgb, depth_color], axis=args.axis)
 
+    # Write frame
     writer.writeFrame(np.uint8(frame_out * 255.))
 
 reader.close()

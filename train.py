@@ -28,8 +28,7 @@ train_dataset = kitti.KITTI(args.path, subset='train', batch_size=args.batch_siz
 test_dataset = kitti.KITTI(args.path, subset='val', batch_size=args.batch_size)
 
 # CNN
-model = networks.DeepResNet50().to(device)
-# model.load_state_dict(torch.load('models/resnet50_v1.pt'))
+model = networks.MultiPurposeCNN().to(device)
 model.train()
 
 # Optimizer
