@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 from skimage.transform import resize
 
 
+LABEL_MAP = {'Pedestrian': 1, 'Car': 2, 'Truck': 2, 'Van': 2}
+
+
 class KITTI(Dataset):
 
     def __init__(self, path, subset='val', batch_size=1, augment=False, downsample=True):
@@ -28,19 +31,15 @@ class KITTI(Dataset):
         # Get object files
         self.object_labels = sorted(next(os.walk(os.path.join(self.object_path, 'labels')))[2])
         self.object_images = sorted(next(os.walk(os.path.join(self.object_path, 'images')))[2])
+        count = 0
+        for file in self.depth_files:
+            if file in self.object_images:
+                count += 1
+        print("There are {} overlapping files with depth + object labels".format(count))
 
         # Set options
         self.batch_size = batch_size
         self.downsample = downsample
-
-        count = 0
-        for file in self.depth_files:
-
-            if file in self.object_images:
-                count += 1
-                print(file)
-
-        print("There are {} overlapping files with depth + object labels".format(count))
 
         # Determine pre-processing sequence
         if augment:
@@ -56,6 +55,7 @@ class KITTI(Dataset):
 
         images = []
         depths = []
+        objects = {}
         for image_file, depth_file in zip(self.image_files[_slice], self.depth_files[_slice]):
 
             # Import image and depth map
@@ -64,6 +64,12 @@ class KITTI(Dataset):
             if self.downsample:
                 depth = resize(depth, (192, 640), mode='constant', cval=1e-3, preserve_range=True, anti_aliasing=False).astype(np.float32)
 
+            if depth_file in self.object_images:
+                bboxes, classes = self._read_object_labels(os.path.join(self.object_path, 'labels',
+                                                                        depth_file[:-4] + '.txt'))
+                objects['bboxes'] = bboxes
+                objects['classes'] = classes
+
             # Pre-process or augment
             image, depth = self.transform(image, depth)
 
@@ -71,7 +77,7 @@ class KITTI(Dataset):
             images.append(image)
             depths.append(depth)
 
-        return {'images': torch.stack(images), 'depths': torch.stack(depths), 'objects': []}
+        return {'images': torch.stack(images), 'depths': torch.stack(depths), 'objects': objects}
 
     def __len__(self):
         return len(self.depth_files) // self.batch_size
@@ -114,8 +120,57 @@ class KITTI(Dataset):
 
         return image, depth
 
+    @staticmethod
+    def _read_object_labels(file):
+
+        with open(file, 'r') as f:
+            string = f.readlines()
+
+        bboxes = []
+        classes = []
+        for item in string:
+            split = item.split(' ')
+            if split[0] in LABEL_MAP.keys():
+                _class = LABEL_MAP[split[0]]
+                x1 = float(split[4])
+                y1 = float(split[5])
+                x2 = float(split[6])
+                y2 = float(split[7])
+
+                bboxes.append([y1, x1, y2, x2])
+                classes.append(_class)
+            else:
+                continue
+
+        return np.array(bboxes).astype(int), np.array(classes)
+
 
 if __name__ == '__main__':
 
-    p = '/media/awmagsam/HDD/Datasets/KITTI'
-    dataset = KITTI(p, augment=True, batch_size=5)
+    p = r'A:\Deep Learning Datasets\KITTI'
+    dataset = KITTI(p, subset='val', augment=False, batch_size=1)
+
+    from matplotlib.patches import Rectangle
+
+    peop = 0
+    veh = 0
+    for idx in range(len(dataset)):
+        print("Sample {:05d}".format(idx + 1))
+        s = dataset[idx]
+        i = s['images']
+        o = s['objects']
+
+        if o:
+            # fig, axes = plt.subplots()
+            # plt.imshow(i.cpu().squeeze().permute(1, 2, 0).numpy())
+            #
+            # for b in o['bboxes']:
+            #         r = Rectangle((b[1], b[0]), b[3] - b[1], b[2] - b[0], color=(1, 0, 0), fill=None)
+            #         axes.add_patch(r)
+            #
+            # plt.show()
+            veh += np.count_nonzero(o['classes'] == 2)
+            peop += np.count_nonzero(o['classes'] == 1)
+
+    print("Vehicles = ", veh)
+    print("People = ", peop)

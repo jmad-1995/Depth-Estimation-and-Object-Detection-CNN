@@ -27,13 +27,12 @@ def _gradient_loss(predictions, target):
     gmag_p = torch.sqrt(gx_p**2 + gy_p**2)
     gmag_t = torch.sqrt(gx_t**2 + gy_t**2)
 
-    return nn.L1Loss()(gx_p, gx_t) + nn.L1Loss()(gy_p, gy_t)
+    return nn.MSELoss()(gmag_p, gmag_t)
 
 
 def depth_loss(predictions, target):
-    x, y = (375, 1220)
-    loss = 1. * nn.L1Loss()(predictions[:, :, :, :], target[:, :, :, :]) + \
-        _gradient_loss(predictions[:, :, :, :], target[:, :, :, :])
+    loss = 1. * nn.L1Loss()(predictions, target) + \
+        _gradient_loss(predictions, target)
     return loss
 
 
@@ -44,6 +43,10 @@ def objects_loss(predictions, targets):
 def depth_metrics(predictions, targets):
 
     """Numpy function to evaluate metrics of depth estimation"""
+
+    if isinstance(predictions, list) or isinstance(targets, list):
+        predictions = np.array(predictions)
+        targets = np.array(targets)
 
     # Delta thresholds
     _max = np.maximum(predictions / targets, targets / predictions)
@@ -87,7 +90,26 @@ def objects_metrics(classes_prediction, bboxes_prediction, classes_targets, bbox
     """
     return
 
- 
+
+def get_object_depths(bboxes, classes, depth_map):
+
+    depths = {'1': [], '2': []}
+    for idx, bbox in enumerate(bboxes):
+
+        # Bounding box in format [y1, x1, y2, x2]
+        y1, x1, y2, x2 = np.array(bbox, np.int)
+
+        # Get the average depth in the bounding box
+        depth = depth_map[y1:y2, x1:x2].mean()
+        if np.isnan(depth):
+            continue
+        else:
+            # Append the result to the dictionary
+            depths[str(classes[idx])].append(depth)
+
+    return depths
+
+
 def non_max_suppression(bboxes, min_IOU=.75):
     # bboxes are arrays with [x1,y1,x2,y2] co-ordinates for each bounding box that is predicted 
     # x1,y1 and x2,y2 are co-ordinates of top left and bottom right points of the bounding box

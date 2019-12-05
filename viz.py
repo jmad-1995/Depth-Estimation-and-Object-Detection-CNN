@@ -120,11 +120,3 @@ class VisdomPlotter(object):
         else:
             self.viz.image(torch.from_numpy(prediction), env=self.env, win=self.plots['prediction_t'],
                            opts={'store_history': True, 'caption': 'Prediction_train'})
-
-
-def visualize_detections(image, bboxes):
-    pass
-
-
-def visualize_depth(image, depth):
-    pass
