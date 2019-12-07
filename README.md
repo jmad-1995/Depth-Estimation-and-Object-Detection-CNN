@@ -8,4 +8,5 @@ Vinay Madhav Jonnalagadda: <vjonnala@asu.edu>
 
 Sri Sai Chandu Kamanuru: <skamanur@asu.edu>
 
+![Image](images/2745.png)
 
